@@ -18,6 +18,7 @@ package cors
 
 import (
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -118,6 +119,7 @@ func Middleware(config Config) gin.HandlerFunc {
 
 	// Create the Middleware function
 	return func(context *gin.Context) {
+		log.Println("entering CORS middleware")
 		// Read the Origin header from the HTTP request
 		currentOrigin := context.Request.Header.Get(OriginKey)
 		context.Writer.Header().Add("Vary", OriginKey)
@@ -125,6 +127,7 @@ func Middleware(config Config) gin.HandlerFunc {
 		// CORS headers are added whenever the browser request includes an "Origin" header
 		// However, if no Origin is supplied, they should never be added.
 		if currentOrigin == "" {
+			log.Println("no Origin header; returning.")
 			return
 		}
 
@@ -134,22 +137,26 @@ func Middleware(config Config) gin.HandlerFunc {
 		}
 
 		if forceOriginMatch || originMatch {
+			log.Println("evaluating request")
 			valid := false
 			preflight := false
 
 			if context.Request.Method == optionsMethod {
 				requestMethod := context.Request.Header.Get(RequestMethodKey)
 				if requestMethod != "" {
+					log.Println("preflight request")
 					preflight = true
 					valid = handlePreflight(context, config, requestMethod)
 				}
 			}
 
 			if !preflight {
+				log.Println("regular (non-preflight) request")
 				valid = handleRequest(context, config)
 			}
 
 			if valid {
+				log.Println("request is valid")
 
 				if config.Credentials {
 					context.Writer.Header().Set(AllowCredentialsKey, config.credentials)
@@ -164,13 +171,16 @@ func Middleware(config Config) gin.HandlerFunc {
 				//If this is a preflight request, we are finished, quit.
 				//Otherwise this is a normal request and operations should proceed at normal
 				if preflight {
+					log.Println("aborting with 200 for preflight request.")
 					context.AbortWithStatus(200)
 				}
+				log.Println("returning.")
 				return
 			}
 		}
 
 		//If it reaches here, it was not a valid request
+		log.Println("request is INvalid; aborting")
 		context.Abort()
 	}
 }
