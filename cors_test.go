@@ -102,6 +102,39 @@ func TestMismatchOrigin(t *testing.T) {
 	}
 }
 
+func TestWildcardOrigin(t *testing.T) {
+	router := gin.New()
+	router.Use(Middleware(Config{
+		Origins: "http://*.subrequired.com, http://files.test.com, http://*.portsok.com:*, http://*any.com, http://*.noports.com",
+	}))
+	testOrigins := map[string]bool{
+		"http://sub.portsok.com:8000": true,
+		"http://sub.subrequired.com":  true,
+		"http://sub.noports.com:8000": false,
+		"http://sub.noports.com":      true,
+		"http://any.com":              true,
+		"http://sub.any.com":          true,
+		"http://other.test.com":       false,
+		"http://test.com":             false,
+	}
+
+	for origin, passes := range testOrigins {
+		req, _ := http.NewRequest("GET", "/", nil)
+		req.Header.Set("Origin", origin)
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		passed := w.Header().Get(AllowOriginKey) != ""
+		if passed != passes {
+			if passed {
+				t.Fatalf("This should not match but it did (%s) (%s)\n", origin, w.Header().Get(AllowOriginKey))
+			} else {
+				t.Fatalf("This should match but it didn't (%s) (%s)\n", origin, w.Header().Get(AllowOriginKey))
+			}
+		}
+	}
+}
+
 func TestPreflightRequest(t *testing.T) {
 	req, _ := http.NewRequest("OPTIONS", "/", nil)
 	w := httptest.NewRecorder()
@@ -210,9 +243,9 @@ func TestForceOrigin(t *testing.T) {
 func TestForceOriginCredentails(t *testing.T) {
 	req, _ := http.NewRequest("GET", "/", nil)
 	w := httptest.NewRecorder()
-	
+
 	req.Header.Set("Origin", "http://localhost")
-	
+
 	router := gin.New()
 	router.Use(Middleware(Config{
 		Origins:         "http://localhost",
@@ -224,7 +257,7 @@ func TestForceOriginCredentails(t *testing.T) {
 		MaxAge:          1 * time.Minute,
 	}))
 	router.ServeHTTP(w, req)
-	
+
 	if w.Header().Get(AllowOriginKey) != "http://localhost" {
 		t.Fatal("Improper Origin is set.")
 	}

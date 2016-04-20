@@ -19,6 +19,7 @@ package cors
 import (
 	"fmt"
 	"log"
+	"regexp"
 	"strings"
 	"time"
 
@@ -87,6 +88,12 @@ type Config struct {
 // to all the formats we use internally strings for headers.. slices for looping
 func (config *Config) prepare() {
 	config.origins = strings.Split(config.Origins, ", ")
+	// escape "." characters for use in wildcard regex
+	for i, origin := range config.origins {
+		origin = strings.Replace(origin, ".", "\\.", -1)
+		origin = strings.Replace(origin, "*", ".*", -1)
+		config.origins[i] = origin + "$"
+	}
 	config.methods = strings.Split(config.Methods, ", ")
 	config.requestHeaders = strings.Split(config.RequestHeaders, ", ")
 	config.maxAge = fmt.Sprintf("%.f", config.MaxAge.Seconds())
@@ -214,10 +221,14 @@ func handleRequest(context *gin.Context, config Config) bool {
 
 // Case-sensitive match of origin header
 func matchOrigin(origin string, config Config) bool {
-	for _, value := range config.origins {
-		if value == origin {
+	for _, pattern := range config.origins {
+		if match, _ := regexp.Match(pattern, []byte(origin)); match {
 			return true
 		}
+
+		// if value == origin {
+		// 	return true
+		// }
 	}
 	return false
 }
